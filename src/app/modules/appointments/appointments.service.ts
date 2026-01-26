@@ -340,13 +340,11 @@ const getAppointments = async (
   }
 
   // Default sort: newest first (or upcoming first)
-  const orderBy: Prisma.AppointmentOrderByWithRelationInput =
-    sortBy
-      ? { [sortBy]: (sortOrder || 'desc') as Prisma.SortOrder }
-      : date
-        ? { dateTime: 'asc' }
-        : { dateTime: 'desc' };
-
+  const orderBy: Prisma.AppointmentOrderByWithRelationInput = sortBy
+    ? { [sortBy]: (sortOrder || 'desc') as Prisma.SortOrder }
+    : date
+      ? { dateTime: 'asc' }
+      : { dateTime: 'desc' };
 
   // Fetch total count for pagination
   const total = await prisma.appointment.count({ where });
@@ -411,7 +409,7 @@ const getAppointments = async (
 type TUpdateAppointment = {
   customerName?: string;
   serviceId?: string;
-  dateTime?: string;       // ISO string "2026-01-26T11:30:00.000Z"
+  dateTime?: string; // ISO string "2026-01-26T11:30:00.000Z"
   staffId?: string | null; // allow explicit null to move to queue
   status?: 'Scheduled' | 'Waiting' | 'Completed' | 'Cancelled' | 'NoShow';
 };
@@ -438,8 +436,7 @@ const updateAppointmentIntoDB = async (
   const finalServiceId = payload.serviceId ?? existing.serviceId;
   const finalDateTimeStr = payload.dateTime ?? existing.dateTime.toISOString();
   const finalDateTime = parseISO(finalDateTimeStr);
-  const finalStaffId =
-    payload.staffId !== undefined ? payload.staffId : existing.staffId;
+  const finalStaffId = payload.staffId !== undefined ? payload.staffId : existing.staffId;
 
   // 3️⃣ Fetch service if changed
   let service = existing.service;
@@ -462,10 +459,7 @@ const updateAppointmentIntoDB = async (
   let newStatus: AppointmentStatusEnum = existing.status;
 
   // Manual override first (highest priority)
-  if (
-    payload.status &&
-    ['Cancelled', 'Completed', 'NoShow'].includes(payload.status)
-  ) {
+  if (payload.status && ['Cancelled', 'Completed', 'NoShow'].includes(payload.status)) {
     newStatus = payload.status;
   }
 
@@ -495,15 +489,13 @@ const updateAppointmentIntoDB = async (
       });
 
       if (!selectedStaff) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Selected staff not found or not available',
-        );
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Selected staff not found or not available');
       }
 
       // A️⃣ Daily capacity check
-      const todayAppointments = selectedStaff.appointments.filter((app: typeof selectedStaff.appointments[number]) =>
-        isSameDay(parseISO(app.dateTime.toISOString()), finalDateTime),
+      const todayAppointments = selectedStaff.appointments.filter(
+        (app: (typeof selectedStaff.appointments)[number]) =>
+          isSameDay(parseISO(app.dateTime.toISOString()), finalDateTime),
       );
 
       if (todayAppointments.length >= selectedStaff.dailyCapacity) {
@@ -534,7 +526,7 @@ const updateAppointmentIntoDB = async (
   }
 
   // Transaction update
-  const updated = await prisma.$transaction(async tx => {
+  const updated = await prisma.$transaction(async (tx) => {
     const appt = await tx.appointment.update({
       where: { id: appointmentId },
       data: {
@@ -565,8 +557,9 @@ const updateAppointmentIntoDB = async (
     }
     if (payload.status) changes.push(`status → ${newStatus}`);
 
-    const logMessage = `Appointment for "${appt.customerName}" updated: ${changes.join(', ') || 'minor changes'
-      }`;
+    const logMessage = `Appointment for "${appt.customerName}" updated: ${
+      changes.join(', ') || 'minor changes'
+    }`;
 
     await tx.activityLog.create({
       data: {
@@ -583,19 +576,64 @@ const updateAppointmentIntoDB = async (
 
   // If staff removed → try to fill queue
   if (existing.staffId && !finalStaffId) {
-    await tryAutoAssignFromQueue(
-      userId,
-      existing.service.requiredStaffType,
-      5,
-    );
+    await tryAutoAssignFromQueue(userId, existing.service.requiredStaffType, 5);
   }
 
   return updated;
 };
 
+const cancelAppointment = async (userId: string, appointmentId: string) => {
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, userId },
+    include: { service: true, staff: true },
+  });
+
+  if (!appointment) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Appointment not found');
+  }
+
+  if (appointment.status === 'Completed' || appointment.status === 'NoShow') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot cancel completed or no-show appointments');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Soft-delete style: update status
+    const cancelled = await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { status: 'Cancelled' },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId,
+        staffId: appointment.staffId ?? undefined,
+        appointmentId,
+        message: `Appointment for "${appointment.customerName}" was cancelled`,
+        action: 'CANCEL',
+      },
+    });
+
+    return cancelled;
+  });
+
+  // If it was scheduled → that staff slot is now free → try to assign from queue
+  if (appointment.status === 'Scheduled' && appointment.staffId) {
+    const staff = await prisma.staff.findUnique({
+      where: { id: appointment.staffId },
+      select: { serviceType: true },
+    });
+
+    if (staff) {
+      await tryAutoAssignFromQueue(userId, staff.serviceType, 5);
+    }
+  }
+
+  return { message: 'Appointment cancelled successfully', id: appointmentId };
+};
 
 export const AppointmentsServices = {
   createAppointments,
   getAppointments,
   updateAppointmentIntoDB,
+  cancelAppointment,
 };

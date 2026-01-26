@@ -22,5 +22,8 @@ router.patch(
   auth('USER'),
   validateRequest(AppointmentsValidations.updateAppointmentsSchema),
   AppointmentsControllers.updateAppointmentIntoDB,
-)
+);
+
+router.delete('/:id', auth('USER'), AppointmentsControllers.cancelAppointment);
+
 export const AppointmentsRoutes = router;

@@ -43,10 +43,22 @@ const updateAppointmentIntoDB = catchAsync(async (req: Request, res: Response) =
     message: 'Appointment updated successfully',
     data: result,
   });
-})
+});
+
+const cancelAppointment = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const appointmentId = req.params.id;
+  await AppointmentsServices.cancelAppointment(userId, appointmentId);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Appointment cancelled successfully',
+  });
+});
 
 export const AppointmentsControllers = {
   createAppointmentsIntoDB,
   getAppointments,
-  updateAppointmentIntoDB
+  updateAppointmentIntoDB,
+  cancelAppointment,
 };
