@@ -340,11 +340,13 @@ const getAppointments = async (
   }
 
   // Default sort: newest first (or upcoming first)
-  const orderBy = sortBy
-    ? { [sortBy]: sortOrder || 'desc' }
-    : date
-      ? { dateTime: 'asc' } // on specific date → chronological
-      : { dateTime: 'desc' }; // otherwise → newest first
+  const orderBy: Prisma.AppointmentOrderByWithRelationInput =
+    sortBy
+      ? { [sortBy]: (sortOrder || 'desc') as Prisma.SortOrder }
+      : date
+        ? { dateTime: 'asc' }
+        : { dateTime: 'desc' };
+
 
   // Fetch total count for pagination
   const total = await prisma.appointment.count({ where });
@@ -352,7 +354,7 @@ const getAppointments = async (
   // Fetch paginated appointments
   const appointments = await prisma.appointment.findMany({
     where,
-    // orderBy,
+    orderBy,
     skip,
     take: limit,
     include: {
@@ -406,7 +408,194 @@ const getAppointments = async (
   };
 };
 
+type TUpdateAppointment = {
+  customerName?: string;
+  serviceId?: string;
+  dateTime?: string;       // ISO string "2026-01-26T11:30:00.000Z"
+  staffId?: string | null; // allow explicit null to move to queue
+  status?: 'Scheduled' | 'Waiting' | 'Completed' | 'Cancelled' | 'NoShow';
+};
+
+const updateAppointmentIntoDB = async (
+  userId: string,
+  appointmentId: string,
+  payload: TUpdateAppointment,
+) => {
+  // 1️⃣ Fetch existing appointment
+  const existing = await prisma.appointment.findFirst({
+    where: { id: appointmentId, userId },
+    include: {
+      service: true,
+      staff: true,
+    },
+  });
+
+  if (!existing) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Appointment not found');
+  }
+
+  // 2️⃣ Final values resolve
+  const finalServiceId = payload.serviceId ?? existing.serviceId;
+  const finalDateTimeStr = payload.dateTime ?? existing.dateTime.toISOString();
+  const finalDateTime = parseISO(finalDateTimeStr);
+  const finalStaffId =
+    payload.staffId !== undefined ? payload.staffId : existing.staffId;
+
+  // 3️⃣ Fetch service if changed
+  let service = existing.service;
+  if (payload.serviceId && payload.serviceId !== existing.serviceId) {
+    const newService = await prisma.service.findFirst({
+      where: { id: payload.serviceId, userId },
+    });
+
+    if (!newService) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid or unauthorized service');
+    }
+
+    service = newService;
+  }
+
+  const duration = service.durationMinutes;
+  const newEndTime = addMinutes(finalDateTime, duration);
+
+  // 4️⃣ Status priority logic
+  let newStatus: AppointmentStatusEnum = existing.status;
+
+  // Manual override first (highest priority)
+  if (
+    payload.status &&
+    ['Cancelled', 'Completed', 'NoShow'].includes(payload.status)
+  ) {
+    newStatus = payload.status;
+  }
+
+  let selectedStaff: any = null;
+
+  // Auto logic only if NOT cancelled/completed
+  if (!['Cancelled', 'Completed', 'NoShow'].includes(newStatus)) {
+    if (finalStaffId) {
+      // ── Validate staff ──
+      selectedStaff = await prisma.staff.findFirst({
+        where: {
+          id: finalStaffId,
+          userId,
+          status: 'Available',
+        },
+        include: {
+          appointments: {
+            where: {
+              id: { not: appointmentId },
+              status: { in: ['Scheduled'] },
+            },
+            include: {
+              service: true,
+            },
+          },
+        },
+      });
+
+      if (!selectedStaff) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          'Selected staff not found or not available',
+        );
+      }
+
+      // A️⃣ Daily capacity check
+      const todayAppointments = selectedStaff.appointments.filter((app: typeof selectedStaff.appointments[number]) =>
+        isSameDay(parseISO(app.dateTime.toISOString()), finalDateTime),
+      );
+
+      if (todayAppointments.length >= selectedStaff.dailyCapacity) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `${selectedStaff.name} has reached daily capacity (${todayAppointments.length}/${selectedStaff.dailyCapacity})`,
+        );
+      }
+
+      // B️⃣ Time conflict check
+      for (const app of todayAppointments) {
+        const exStart = parseISO(app.dateTime.toISOString());
+        const exEnd = addMinutes(exStart, app.service.durationMinutes);
+
+        if (timesOverlap(exStart, exEnd, finalDateTime, newEndTime)) {
+          throw new ApiError(
+            httpStatus.CONFLICT,
+            'This staff member already has an appointment at the selected time',
+          );
+        }
+      }
+
+      newStatus = 'Scheduled';
+    } else {
+      // No staff → queue
+      newStatus = 'Waiting';
+    }
+  }
+
+  // Transaction update
+  const updated = await prisma.$transaction(async tx => {
+    const appt = await tx.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        customerName: payload.customerName ?? existing.customerName,
+        serviceId: finalServiceId,
+        dateTime: finalDateTime,
+        staffId: finalStaffId,
+        status: newStatus,
+      },
+    });
+
+    // Activity log
+    const action =
+      newStatus === 'Cancelled'
+        ? 'CANCEL'
+        : newStatus === 'Completed'
+          ? 'COMPLETE'
+          : finalStaffId
+            ? existing.staffId
+              ? 'EDIT'
+              : 'QUEUE_TO_STAFF'
+            : 'QUEUED';
+
+    const changes: string[] = [];
+    if (payload.dateTime) changes.push('time updated');
+    if (payload.staffId !== undefined) {
+      changes.push(finalStaffId ? `assigned to ${selectedStaff?.name}` : 'moved to queue');
+    }
+    if (payload.status) changes.push(`status → ${newStatus}`);
+
+    const logMessage = `Appointment for "${appt.customerName}" updated: ${changes.join(', ') || 'minor changes'
+      }`;
+
+    await tx.activityLog.create({
+      data: {
+        userId,
+        staffId: finalStaffId ?? undefined,
+        appointmentId: appt.id,
+        action,
+        message: logMessage,
+      },
+    });
+
+    return appt;
+  });
+
+  // If staff removed → try to fill queue
+  if (existing.staffId && !finalStaffId) {
+    await tryAutoAssignFromQueue(
+      userId,
+      existing.service.requiredStaffType,
+      5,
+    );
+  }
+
+  return updated;
+};
+
+
 export const AppointmentsServices = {
   createAppointments,
   getAppointments,
+  updateAppointmentIntoDB,
 };

@@ -32,7 +32,21 @@ const getAppointments = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateAppointmentIntoDB = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const appointmentId = req.params.id;
+  const body = req.body;
+  const result = await AppointmentsServices.updateAppointmentIntoDB(userId, appointmentId, body);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Appointment updated successfully',
+    data: result,
+  });
+})
+
 export const AppointmentsControllers = {
   createAppointmentsIntoDB,
   getAppointments,
+  updateAppointmentIntoDB
 };

@@ -11,12 +11,16 @@ const router = Router();
 router.post(
   '/',
   auth('USER'),
-  fileUploader.uploadFields,
-  validateRequest(AppointmentsValidations.createAppointmentsSchema, {
-    image: 'single',
-  }),
+  validateRequest(AppointmentsValidations.createAppointmentsSchema),
   AppointmentsControllers.createAppointmentsIntoDB,
 );
 
 router.get('/', auth('USER'), AppointmentsControllers.getAppointments);
+
+router.patch(
+  '/:id',
+  auth('USER'),
+  validateRequest(AppointmentsValidations.updateAppointmentsSchema),
+  AppointmentsControllers.updateAppointmentIntoDB,
+)
 export const AppointmentsRoutes = router;
