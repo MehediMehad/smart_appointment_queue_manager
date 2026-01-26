@@ -71,14 +71,6 @@ const getAllStaffs = async (
       dailyCapacity: true,
       status: true,
       createdAt: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
-      },
     },
   });
 
