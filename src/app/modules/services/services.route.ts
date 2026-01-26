@@ -14,4 +14,6 @@ router.post(
   ServicesControllers.createServicesIntoDB,
 );
 
+router.get('/', auth('USER'), ServicesControllers.getAllServices);
+
 export const ServicesRoutes = router;
