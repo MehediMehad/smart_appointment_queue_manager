@@ -15,5 +15,6 @@ router.post(
 );
 
 router.get('/', auth('USER', 'ADMIN'), StaffsControllers.getAllStaffs);
+router.get('/my', auth('USER', 'ADMIN'), StaffsControllers.getMyAllStaffs);
 
 export const StaffsRoutes = router;
