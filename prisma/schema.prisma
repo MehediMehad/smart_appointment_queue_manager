@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  email      String         @unique
+  password   String // hashed
+  name       String?
+  image      String? // profile picture
+  role       UserRoleEnum   @default(USER)
+  fcmToken   String? // for push notifications
+  isVerified Boolean        @default(true)
+  status     UserStatusEnum @default(ACTIVE)
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  activityLogs ActivityLog[]
+
+  @@map("users")
+}
+
+// Staff 
+model Staff {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  serviceType   String // "Doctor", "Consultant", "Hair Stylist", etc.
+  dailyCapacity Int             @default(8) // maximum appointments per day
+  status        StaffStatusEnum @default(Available)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  appointments Appointment[]
+  activityLogs ActivityLog[]
+
+  @@map("staffs")
+}
+
+// Service
+model Service {
+  id                String @id @default(auto()) @map("_id") @db.ObjectId
+  name              String // "Online Consultation", "Hair Cut", "Visa Check"
+  durationMinutes   Int // 15, 30, 45, 60 ...
+  requiredStaffType String // must match Staff.serviceType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// Appointment 
+model Appointment {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  customerName  String
+  customerPhone String? // optional
+  customerEmail String? // optional
+
+  serviceId String  @db.ObjectId
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  staffId String? @db.ObjectId
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  dateTime DateTime // full date + time (e.g. 2025-02-15T10:30:00.000Z)
+
+  status AppointmentStatusEnum @default(Scheduled)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  activityLogs ActivityLog[]
+
+  @@index([dateTime, staffId])
+  @@map("appointments")
+}
+
+// Activity 
+model ActivityLog {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  staffId String? @db.ObjectId
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  appointmentId String?      @db.ObjectId
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  message String // "Appointment for 'Rahim' auto-assigned to Dr. Farhan"
+  action  String? // "AUTO_ASSIGN", "CANCEL", "CREATE", "QUEUE_TO_STAFF"
+
+  createdAt DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+enum UserStatusEnum {
+  ACTIVE
+  DEACTIVATE
+  BLOCKED
+}
+
+enum StaffStatusEnum {
+  Available
+  OnLeave
+}
+
+enum AppointmentStatusEnum {
+  Scheduled
+  Waiting // queue-তে আছে
+  Completed
+  Cancelled
+  NoShow
+}
+
+enum UserRoleEnum {
+  USER
+  ADMIN
+}
+
+model Otp {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  code      String
+  type      OtpTypeEnum //  VERIFY_EMAIL, RESET_PASSWORD, VERIFY_PHONE,
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+
+  @@unique([email, code, type])
+  @@index([email, type, expiresAt])
+  @@map("opts")
+}
+
+// Enums
+enum OtpTypeEnum {
+  LOGIN
+  FORGOT_PASSWORD
+  VERIFY_EMAIL
+  RESET_PASSWORD
+  VERIFY_PHONE
+  VERIFY_USER
+}

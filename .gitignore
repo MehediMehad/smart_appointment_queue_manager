@@ -1,0 +1,7 @@
+commit.txt
+node_modules
+dist
+logs
+.env
+.vscode
+.env

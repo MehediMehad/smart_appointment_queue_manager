@@ -1,0 +1,394 @@
+import { UserStatusEnum, type Prisma } from '@prisma/client';
+import { compare } from 'bcrypt';
+import httpStatus from 'http-status';
+import type { JwtPayload } from 'jsonwebtoken';
+import { verify } from 'jsonwebtoken';
+
+import type {
+  TRegisterPayload,
+  TLoginPayload,
+  TChangePasswordPayload,
+  TForgotPasswordPayload,
+  TResetPasswordPayload,
+  TVerifyPayload,
+  TResendOtpPayload,
+} from './auths.interface';
+import config from '../../../configs';
+import ApiError from '../../errors/ApiError';
+import { authHelpers } from '../../helpers/authHelpers';
+import { generateHelpers } from '../../helpers/generateHelpers';
+import prisma from '../../libs/prisma';
+import { ForgotPasswordHtml } from '../../utils/email/ForgotPasswordHtml';
+import { sentEmailUtility } from '../../utils/email/sendEmail.util';
+import { SignUpVerificationHtml } from '../../utils/email/SignUpVerificationHtml';
+
+const registerUser = async (payload: TRegisterPayload) => {
+  // if user already exists
+  const isUserExists = await prisma.user.findFirst({
+    where: {
+      email: payload.email,
+    },
+  });
+
+  if (isUserExists) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User already exists');
+  }
+
+  const hashedPassword: string = await authHelpers.hashPassword(payload.password);
+
+  // Create user data
+  const CreateUserdata: Prisma.UserCreateInput = {
+    name: payload.name,
+    image: payload.image,
+    email: payload.email,
+    password: hashedPassword,
+  };
+
+  const result = await prisma.user.create({
+    data: CreateUserdata,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      image: true,
+      status: true,
+      createdAt: true,
+    }
+  });
+
+  return result;
+};
+
+const createDemoUser = async () => {
+
+  const isUserExists = await prisma.user.findFirst({
+    where: {
+      email: 'demo@gmail.com',
+    },
+  })
+
+  if (isUserExists) {
+    console.log('demo user already created');
+    return
+  }
+
+  const hashedPassword: string = await authHelpers.hashPassword('password');
+  // Create user data
+  const CreateUserdata: Prisma.UserCreateInput = {
+    name: 'Demo User',
+    image: 'https://advocatoriowebclick.s3.eu-north-1.amazonaws.com/1769398612049-Zihad.jpg/file-image',
+    email: 'demo@gmail.com',
+    password: hashedPassword,
+  };
+
+  await prisma.user.create({
+    data: CreateUserdata,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      image: true,
+      status: true,
+      createdAt: true,
+    }
+  });
+  console.log('demo user created');
+  return
+}
+
+
+const loginUser = async (payload: TLoginPayload) => {
+  const user = await prisma.user.findUnique({
+    where: { email: payload.email },
+  });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  if (!user.isVerified) throw new ApiError(httpStatus.FORBIDDEN, 'Please verify your email first');
+
+  if (user.status !== 'ACTIVE')
+    throw new ApiError(httpStatus.FORBIDDEN, `Account is ${user.status.toLowerCase()}`);
+
+  const isPasswordMatch = await compare(payload.password, user.password);
+
+  if (!isPasswordMatch) throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid password');
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { fcmToken: payload.fcmToken, lastLoginAt: new Date() },
+  });
+
+  const accessToken = authHelpers.createAccessToken({
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+  });
+
+  const refreshToken = authHelpers.createRefreshToken({
+    userId: user.id,
+  });
+
+  // password should not be sent
+  const { password: _, ...userData } = user;
+
+  return {
+    accessToken,
+    refreshToken,
+    ...userData,
+  };
+};
+
+const verifyEmail = async (payload: TVerifyPayload) => {
+  const user = await prisma.user.findUnique({
+    where: { email: payload.email },
+    select: { id: true, name: true, email: true, role: true, isVerified: true },
+  });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const otpRecord = await prisma.otp.findFirst({
+    where: {
+      email: payload.email,
+      code: payload.code,
+      type: payload.type,
+      expiresAt: { gt: new Date() }, // not expired OTP
+    },
+    orderBy: { createdAt: 'desc' }, // newest OTP
+    select: { id: true },
+  });
+
+  if (!otpRecord)
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid or expired verification code');
+
+  const accessToken = authHelpers.createAccessToken({
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+  });
+
+  const refreshToken = authHelpers.createRefreshToken({
+    userId: user.id,
+  });
+
+  // Transaction usage
+  const updatedUser = await prisma.$transaction(
+    async (tx) => {
+      // 1. Verify email
+      const user = await tx.user.update({
+        where: { email: payload.email },
+        data: { isVerified: true, status: UserStatusEnum.ACTIVE },
+        select: { id: true, name: true, email: true, role: true, isVerified: true },
+      });
+
+      // 2. Delete all OTPs from this email (security + cleanup)
+      await tx.otp.deleteMany({
+        where: {
+          OR: [{ email: payload.email, type: payload.type }, { expiresAt: { lte: new Date() } }],
+        },
+      });
+
+      // 3. Create RESET_PASSWORD OTP
+      if (payload.type === 'RESET_PASSWORD') {
+        const { expiresAt } = generateHelpers.generateOTP(6, 10);
+        await tx.otp.create({
+          data: {
+            code: accessToken,
+            email: payload.email,
+            type: 'RESET_PASSWORD',
+            expiresAt, // 10 minutes
+          },
+        });
+      }
+
+      return user;
+    },
+    {
+      timeout: 10000, // 10 seconds
+    },
+  );
+
+  return {
+    message: `${payload.type.toLowerCase()} verified successfully`,
+    result: {
+      ...updatedUser,
+      accessToken,
+      refreshToken,
+    },
+  };
+};
+
+const forgotPassword = async (payload: TForgotPasswordPayload) => {
+  const user = await prisma.user.findUnique({
+    where: { email: payload.email },
+  });
+
+  // if (!user) {
+  //   // "User not found" is usually not called for security reasons
+  //   throw new ApiError(httpStatus.BAD_REQUEST, 'If email exists, reset link will be sent');
+  // }
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const { otp, expiresAt } = generateHelpers.generateOTP(6, 10); // 10 minutes
+
+  await prisma.otp.create({
+    data: {
+      email: payload.email,
+      code: otp,
+      type: 'RESET_PASSWORD',
+      expiresAt,
+    },
+  });
+
+  // async email send
+  void sentEmailUtility(
+    payload.email,
+    'Reset Your Password',
+    ForgotPasswordHtml('Reset Password', otp),
+  );
+
+  return {
+    message: 'Reset password code has been sent to your email',
+  };
+};
+
+const resetPassword = async (payload: TResetPasswordPayload) => {
+  const otpRecord = await prisma.otp.findFirst({
+    where: {
+      code: payload.token,
+      type: 'RESET_PASSWORD',
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!otpRecord) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid or expired token');
+  }
+
+  const hashedPassword = await authHelpers.hashPassword(payload.newPassword);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { email: otpRecord.email },
+      data: { password: hashedPassword },
+    });
+
+    // Delete all RESET_PASSWORD OTPs from this email
+    await tx.otp.deleteMany({
+      where: {
+        email: otpRecord.email,
+        type: 'RESET_PASSWORD',
+      },
+    });
+  });
+
+  return { message: 'Password reset successful' };
+};
+
+const changePassword = async (userId: string, payload: TChangePasswordPayload) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const isMatch = await compare(payload.oldPassword, user.password);
+
+  if (!isMatch) throw new ApiError(httpStatus.BAD_REQUEST, 'Old password is incorrect');
+
+  const newHashedPassword = await authHelpers.hashPassword(payload.newPassword);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: newHashedPassword },
+  });
+
+  return { message: 'Password changed successfully' };
+};
+
+const getMe = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      image: true,
+      isVerified: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  return user;
+};
+
+const refreshToken = async (refreshToken: string) => {
+  // Verify
+  const decoded = verify(refreshToken, config.jwt.refresh_secret) as JwtPayload;
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.userId },
+  });
+
+  if (!user) throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid refresh token');
+
+  const newAccessToken = authHelpers.createAccessToken({
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+  });
+
+  return { accessToken: newAccessToken };
+};
+
+const resendOtp = async (payload: TResendOtpPayload) => {
+  const user = await prisma.user.findUnique({
+    where: { email: payload.email },
+  });
+
+  // if (!user) {
+  //   // Security: user না থাকলেও success message দাও (enumeration prevent)
+  //   return { message: 'If the email exists, a new OTP has been sent.' };
+  // }
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const { otp, expiresAt } = generateHelpers.generateOTP(6, 10);
+
+  await prisma.otp.create({
+    data: {
+      code: otp,
+      email: payload.email,
+      type: payload.type,
+      expiresAt,
+    },
+  });
+
+  // async email send
+  const html =
+    payload.type === 'VERIFY_EMAIL'
+      ? SignUpVerificationHtml('Verify Your Email', otp)
+      : ForgotPasswordHtml('Reset Your Password', otp);
+
+  void sentEmailUtility(payload.email, 'Your Verification Code', html);
+
+  return { message: 'A new OTP has been sent to your email.' };
+};
+
+export const AuthsServices = {
+  registerUser,
+  createDemoUser,
+  loginUser,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  getMe,
+  refreshToken,
+  resendOtp,
+};

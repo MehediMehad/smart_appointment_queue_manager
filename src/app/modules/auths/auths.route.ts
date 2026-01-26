@@ -1,0 +1,76 @@
+import { Router } from 'express';
+
+import { AuthsControllers } from './auths.controller';
+import { AuthsValidations } from './auths.validation';
+import auth from '../../middlewares/auth';
+import {
+  forgotPasswordLimiter,
+  loginLimiter,
+  resendOtpLimiter,
+} from '../../middlewares/rateLimiter';
+import { fileUploader } from '../../middlewares/s3MulterMiddleware';
+import validateRequest from '../../middlewares/validateRequest';
+
+const router = Router();
+
+router.post(
+  '/register',
+  fileUploader.uploadFields, // multipart/form-data → image upload
+  validateRequest(AuthsValidations.registerSchema, {
+    image: 'single', // field name = 'image', single file
+  }),
+  AuthsControllers.registerUserIntoDB,
+);
+
+router.post(
+  '/login',
+  loginLimiter,
+  validateRequest(AuthsValidations.loginSchema),
+  AuthsControllers.loginUserIntoDB,
+);
+
+router.post(
+  '/forgot-password',
+  forgotPasswordLimiter,
+  validateRequest(AuthsValidations.forgotPasswordSchema),
+  AuthsControllers.forgotPasswordIntoDB,
+);
+
+router.post(
+  '/reset-password',
+  validateRequest(AuthsValidations.resetPasswordSchema),
+  AuthsControllers.resetPasswordIntoDB,
+);
+
+router.post('/refresh-token', AuthsControllers.refreshTokenIntoDB);
+
+router.get('/me', auth('USER', 'ADMIN',), AuthsControllers.getMyProfile);
+
+router.post(
+  '/change-password',
+  auth('ADMIN', 'USER'),
+  validateRequest(AuthsValidations.changePasswordSchema),
+  AuthsControllers.changePasswordIntoDB,
+);
+
+router.post(
+  '/verify',
+  validateRequest(AuthsValidations.verifySchema),
+  AuthsControllers.verifyEmailIntoDB,
+);
+
+router.post(
+  '/resend-otp',
+  resendOtpLimiter,
+  validateRequest(AuthsValidations.resendOtpSchema),
+  AuthsControllers.resendOtpIntoDB,
+);
+
+// // Optional: Logout (if you want to implement token blacklisting)
+// router.post(
+//   '/logout',
+//   auth(),
+//   AuthsControllers.logout,                // you'll need to add this later
+// );
+
+export const AuthsRoutes = router;
