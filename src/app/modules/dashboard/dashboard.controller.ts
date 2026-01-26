@@ -18,6 +18,22 @@ const getDashboardSummary = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const getRecentActivityLogs = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const filters = pick(req.query, ['staffId', 'appointmentId']);
+  const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder']);
+  const result = await DashboardServices.getRecentActivityLogs(userId, filters, options);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Recent activity logs fetched successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 export const DashboardControllers = {
   getDashboardSummary,
+  getRecentActivityLogs
 };
