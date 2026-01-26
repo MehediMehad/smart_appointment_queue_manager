@@ -1,10 +1,10 @@
-import prisma from '../../libs/prisma';
-import type { TCreateServicesPayload } from './services.interface';
-import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
 
-const createServices = async (userId: string, payload: TCreateServicesPayload) => {
+import type { TCreateServicesPayload } from './services.interface';
+import ApiError from '../../errors/ApiError';
+import prisma from '../../libs/prisma';
 
+const createServices = async (userId: string, payload: TCreateServicesPayload) => {
   // staff type exists check
   const staffExists = await prisma.staff.findFirst({
     where: {
@@ -17,7 +17,7 @@ const createServices = async (userId: string, payload: TCreateServicesPayload) =
   if (!staffExists) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `No available staff found for service type: ${payload.requiredStaffType}`
+      `No available staff found for service type: ${payload.requiredStaffType}`,
     );
   }
 

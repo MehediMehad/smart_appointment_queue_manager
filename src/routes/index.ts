@@ -1,8 +1,8 @@
 import express from 'express';
 
 import { AuthsRoutes } from '../app/modules/auths/auths.route';
-import { StaffsRoutes } from '../app/modules/staffs/staffs.route';
 import { ServicesRoutes } from '../app/modules/services/services.route';
+import { StaffsRoutes } from '../app/modules/staffs/staffs.route';
 
 const router = express.Router();
 
