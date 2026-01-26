@@ -19,7 +19,7 @@ router.get('/my', auth('USER', 'ADMIN'), StaffsControllers.getMyAllStaffs);
 router.get('/eligible', auth('USER', 'ADMIN'), StaffsControllers.getEligibleStaffs);
 
 router.patch(
-  '/:id',
+  '/:id/status',
   auth('USER', 'ADMIN'),
   validateRequest(StaffsValidations.updateStaffsSchema),
   StaffsControllers.updateStaffsIntoDB,

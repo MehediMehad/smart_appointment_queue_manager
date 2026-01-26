@@ -184,7 +184,7 @@ const getEligibleStaffs = async (
   filters: TFilterOptions,
 ) => {
   const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
-  const { searchTerm, status = "Available" } = filters;
+  const { searchTerm, status = "Available", } = filters;
 
   // Build dynamic where clause
   const whereClause: Prisma.StaffWhereInput = {
