@@ -9,7 +9,7 @@ import type { IPaginationOptions } from '../../interface/pagination.type';
 import prisma from '../../libs/prisma';
 
 // Helper: Check if two time slots overlap
-const timesOverlap = (
+export const timesOverlap = (
   existingStart: Date,
   existingEnd: Date,
   newStart: Date,
@@ -557,9 +557,8 @@ const updateAppointmentIntoDB = async (
     }
     if (payload.status) changes.push(`status → ${newStatus}`);
 
-    const logMessage = `Appointment for "${appt.customerName}" updated: ${
-      changes.join(', ') || 'minor changes'
-    }`;
+    const logMessage = `Appointment for "${appt.customerName}" updated: ${changes.join(', ') || 'minor changes'
+      }`;
 
     await tx.activityLog.create({
       data: {
