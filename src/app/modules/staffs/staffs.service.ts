@@ -178,6 +178,85 @@ const getMyAllStaffs = async (
   };
 };
 
+const getEligibleStaffs = async (
+  userId: string,
+  options: IPaginationOptions,
+  filters: TFilterOptions,
+) => {
+  const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+  const { searchTerm, status = "Available" } = filters;
+
+  // Build dynamic where clause
+  const whereClause: Prisma.StaffWhereInput = {
+    NOT: {
+      userId,
+    },
+  };
+
+  // search (title, category)
+  if (searchTerm) {
+    whereClause.OR = [
+      {
+        name: {
+          contains: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+    ];
+  }
+
+  // filters (status)
+  if (status) {
+    whereClause.status = status;
+  }
+
+  // Get paginated data
+  const staffs = await prisma.staff.findMany({
+    where: whereClause,
+    skip,
+    take: limit,
+    orderBy: {
+      [sortBy]: sortOrder, // default newest
+    },
+    select: {
+      id: true,
+      name: true,
+      serviceType: true,
+      dailyCapacity: true,
+      status: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+    },
+  });
+
+  //  Get total count
+  const total = await prisma.staff.count({
+    where: whereClause,
+  });
+
+  // Pagination meta
+  const meta = {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+    hasNextPage: page < Math.ceil(total / limit),
+    hasPrevPage: page > 1,
+  };
+
+  return {
+    meta,
+    data: staffs,
+  };
+};
+
 const updateStaffsIntoDB = async (
   userId: string,
   staffId: string,
@@ -199,5 +278,6 @@ export const StaffsServices = {
   createStaffsIntoDB,
   getAllStaffs,
   getMyAllStaffs,
+  getEligibleStaffs,
   updateStaffsIntoDB,
 };

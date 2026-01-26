@@ -46,6 +46,20 @@ const getMyAllStaffs = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getEligibleStaffs = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const filters = pick(req.query, ['searchTerm', 'status']);
+  const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder']);
+  const result = await StaffsServices.getEligibleStaffs(userId, filters, options);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Eligible Staffs fetched successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const updateStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
   const staffId = req.params.id;
@@ -63,5 +77,6 @@ export const StaffsControllers = {
   createStaffsIntoDB,
   getAllStaffs,
   getMyAllStaffs,
+  getEligibleStaffs,
   updateStaffsIntoDB,
 };
