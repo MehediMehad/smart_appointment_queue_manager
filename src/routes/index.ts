@@ -5,6 +5,7 @@ import { AuthsRoutes } from '../app/modules/auths/auths.route';
 import { QueueRoutes } from '../app/modules/queue/queue.route';
 import { ServicesRoutes } from '../app/modules/services/services.route';
 import { StaffsRoutes } from '../app/modules/staffs/staffs.route';
+import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route';
 
 const router = express.Router();
 
@@ -28,6 +29,10 @@ const moduleRoutes = [
   {
     path: '/queue',
     route: QueueRoutes,
+  },
+  {
+    path: '/dashboard',
+    route: DashboardRoutes,
   },
 ];
 
