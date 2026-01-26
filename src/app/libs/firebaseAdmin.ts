@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
-import { ServiceAccount } from 'firebase-admin';
+import type { ServiceAccount } from 'firebase-admin';
+
 import { getEnvVar } from '../helpers/getEnvVar';
 
 const serviceAccount: ServiceAccount = {

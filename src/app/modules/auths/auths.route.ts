@@ -44,7 +44,7 @@ router.post(
 
 router.post('/refresh-token', AuthsControllers.refreshTokenIntoDB);
 
-router.get('/me', auth('USER', 'ADMIN',), AuthsControllers.getMyProfile);
+router.get('/me', auth('USER', 'ADMIN'), AuthsControllers.getMyProfile);
 
 router.post(
   '/change-password',

@@ -14,7 +14,8 @@ export const registerSchema = z.object({
   name: z
     .string()
     .min(2, 'Name must be at least 2 characters')
-    .max(50, 'Name must be at most 50 characters').optional(),
+    .max(50, 'Name must be at most 50 characters')
+    .optional(),
   image: z.string().url('Image must be a valid URL').optional(),
   email: z.string().email('Invalid email address').trim().toLowerCase(),
   password: passwordSchema,

@@ -54,30 +54,30 @@ const registerUser = async (payload: TRegisterPayload) => {
       image: true,
       status: true,
       createdAt: true,
-    }
+    },
   });
 
   return result;
 };
 
 const createDemoUser = async () => {
-
   const isUserExists = await prisma.user.findFirst({
     where: {
       email: 'demo@gmail.com',
     },
-  })
+  });
 
   if (isUserExists) {
     console.log('demo user already created');
-    return
+    return;
   }
 
   const hashedPassword: string = await authHelpers.hashPassword('password');
   // Create user data
   const CreateUserdata: Prisma.UserCreateInput = {
     name: 'Demo User',
-    image: 'https://advocatoriowebclick.s3.eu-north-1.amazonaws.com/1769398612049-Zihad.jpg/file-image',
+    image:
+      'https://advocatoriowebclick.s3.eu-north-1.amazonaws.com/1769398612049-Zihad.jpg/file-image',
     email: 'demo@gmail.com',
     password: hashedPassword,
   };
@@ -92,12 +92,11 @@ const createDemoUser = async () => {
       image: true,
       status: true,
       createdAt: true,
-    }
+    },
   });
   console.log('demo user created');
-  return
-}
-
+  return;
+};
 
 const loginUser = async (payload: TLoginPayload) => {
   const user = await prisma.user.findUnique({

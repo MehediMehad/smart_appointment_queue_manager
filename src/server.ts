@@ -5,8 +5,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import app from './app';
 import seedSuperAdmin from './app/helpers/db/seedSuperAdmin';
 import { getLocalIP } from './app/helpers/devHelpers';
-import config from './configs';
 import { AuthsServices } from './app/modules/auths/auths.service';
+import config from './configs';
 // import { initializeSocket } from './app/modules/chat/chat.socket';
 
 let server: HttpServer;
