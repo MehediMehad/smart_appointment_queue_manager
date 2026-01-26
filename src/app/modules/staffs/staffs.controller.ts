@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 
 import { StaffsServices } from './staffs.service';
 import catchAsync from '../../helpers/catchAsync';
+import pick from '../../helpers/pick';
 import sendResponse from '../../utils/sendResponse';
 
 const createStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
@@ -17,6 +18,20 @@ const createStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getAllStaffs = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const filters = pick(req.query, ['searchTerm', 'status']);
+  const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder']);
+  const result = await StaffsServices.getAllStaffs(userId, filters, options);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Staffs fetched successfully',
+    data: result,
+  });
+});
+
 export const StaffsControllers = {
   createStaffsIntoDB,
+  getAllStaffs,
 };

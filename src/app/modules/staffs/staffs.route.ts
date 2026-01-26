@@ -14,4 +14,6 @@ router.post(
   StaffsControllers.createStaffsIntoDB,
 );
 
+router.get('/', auth('USER', 'ADMIN'), StaffsControllers.getAllStaffs);
+
 export const StaffsRoutes = router;
