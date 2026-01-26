@@ -3,8 +3,8 @@ import httpStatus from 'http-status';
 
 import { QueueServices } from './queue.service';
 import catchAsync from '../../helpers/catchAsync';
-import sendResponse from '../../utils/sendResponse';
 import pick from '../../helpers/pick';
+import sendResponse from '../../utils/sendResponse';
 
 const assignFromQueueToStaff = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
@@ -18,6 +18,19 @@ const assignFromQueueToStaff = catchAsync(async (req: Request, res: Response) =>
   });
 });
 
+const getWaitingQueue = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const filters = pick(req.query, ['serviceType']);
+  const result = await QueueServices.getWaitingQueue(userId, filters);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Queue fetched successfully',
+    data: result,
+  });
+});
+
 export const QueueControllers = {
   assignFromQueueToStaff,
+  getWaitingQueue,
 };

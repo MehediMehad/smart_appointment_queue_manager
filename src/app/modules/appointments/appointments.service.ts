@@ -557,8 +557,9 @@ const updateAppointmentIntoDB = async (
     }
     if (payload.status) changes.push(`status → ${newStatus}`);
 
-    const logMessage = `Appointment for "${appt.customerName}" updated: ${changes.join(', ') || 'minor changes'
-      }`;
+    const logMessage = `Appointment for "${appt.customerName}" updated: ${
+      changes.join(', ') || 'minor changes'
+    }`;
 
     await tx.activityLog.create({
       data: {
