@@ -1,8 +1,11 @@
+import type { AppointmentStatusEnum, Prisma } from '@prisma/client';
 import { addMinutes, isSameDay, parseISO } from 'date-fns';
 import httpStatus from 'http-status';
 
 import type { TCreateAppointmentsPayload } from './appointments.interface';
 import ApiError from '../../errors/ApiError';
+import { paginationHelper } from '../../helpers/paginationHelper';
+import type { IPaginationOptions } from '../../interface/pagination.type';
 import prisma from '../../libs/prisma';
 
 // Helper: Check if two time slots overlap
@@ -272,6 +275,9 @@ const createAppointments = async (userId: string, payload: TCreateAppointmentsPa
     },
   });
 
+  // Optional: you can trigger auto-assign-from-queue logic here if status = Waiting
+  // await tryAutoAssignFromQueue(userId, service.requiredStaffType);
+
   return {
     ...newAppointment,
     message: logMessage,
@@ -280,6 +286,127 @@ const createAppointments = async (userId: string, payload: TCreateAppointmentsPa
   };
 };
 
+type TFilterOptions = {
+  date?: string; // format: "2026-01-26"
+  staffId?: string;
+  status?: AppointmentStatusEnum;
+  searchTerm?: string;
+};
+
+const getAppointments = async (
+  userId: string,
+  filters: TFilterOptions = {},
+  options: IPaginationOptions,
+) => {
+  const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+
+  const { date, staffId, status, searchTerm } = filters;
+
+  // Build where clause
+  const where: Prisma.AppointmentWhereInput = {
+    userId,
+  };
+
+  // 1. Date filter (specific day)
+  if (date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    where.dateTime = {
+      gte: startOfDay,
+      lte: endOfDay,
+    };
+  }
+
+  // 2. Staff filter
+  if (staffId) {
+    where.staffId = staffId;
+  }
+
+  // 3. Status filter (optional)
+  if (status) {
+    where.status = status;
+  }
+
+  // 4. Customer name search (partial match)
+  if (searchTerm && searchTerm.trim()) {
+    where.customerName = {
+      contains: searchTerm.trim(),
+      mode: 'insensitive', // case-insensitive
+    };
+  }
+
+  // Default sort: newest first (or upcoming first)
+  const orderBy = sortBy
+    ? { [sortBy]: sortOrder || 'desc' }
+    : date
+      ? { dateTime: 'asc' } // on specific date → chronological
+      : { dateTime: 'desc' }; // otherwise → newest first
+
+  // Fetch total count for pagination
+  const total = await prisma.appointment.count({ where });
+
+  // Fetch paginated appointments
+  const appointments = await prisma.appointment.findMany({
+    where,
+    // orderBy,
+    skip,
+    take: limit,
+    include: {
+      service: {
+        select: {
+          name: true,
+          durationMinutes: true,
+          requiredStaffType: true,
+        },
+      },
+      staff: {
+        select: {
+          id: true,
+          name: true,
+          serviceType: true,
+          dailyCapacity: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  // Optional: enrich with extra info (e.g. time slot end, load info)
+  const enrichedAppointments = appointments.map((appt) => {
+    const startTime = appt.dateTime;
+    const endTime = new Date(
+      startTime.getTime() + (appt.service?.durationMinutes || 30) * 60 * 1000,
+    );
+
+    return {
+      ...appt,
+      serviceName: appt.service?.name,
+      staffName: appt.staff?.name || null,
+      durationMinutes: appt.service?.durationMinutes,
+      timeSlot: {
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+      },
+      isOverdue: appt.status === 'Scheduled' && startTime < new Date(),
+    };
+  });
+
+  return {
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: enrichedAppointments,
+  };
+};
+
 export const AppointmentsServices = {
   createAppointments,
+  getAppointments,
 };

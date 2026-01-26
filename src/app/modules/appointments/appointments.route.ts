@@ -18,4 +18,5 @@ router.post(
   AppointmentsControllers.createAppointmentsIntoDB,
 );
 
+router.get('/', auth('USER'), AppointmentsControllers.getAppointments);
 export const AppointmentsRoutes = router;
