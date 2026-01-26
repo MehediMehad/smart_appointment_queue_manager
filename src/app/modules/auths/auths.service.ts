@@ -139,6 +139,39 @@ const loginUser = async (payload: TLoginPayload) => {
   };
 };
 
+const loginDemoUser = async () => {
+  const user = await prisma.user.findUnique({
+    where: { email: 'demo@gmail.com' },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      image: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const accessToken = authHelpers.createAccessToken({
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+  });
+
+  const refreshToken = authHelpers.createRefreshToken({
+    userId: user.id,
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    ...user,
+  };
+};
+
 const verifyEmail = async (payload: TVerifyPayload) => {
   const user = await prisma.user.findUnique({
     where: { email: payload.email },
@@ -383,6 +416,7 @@ export const AuthsServices = {
   registerUser,
   createDemoUser,
   loginUser,
+  loginDemoUser,
   verifyEmail,
   forgotPassword,
   resetPassword,

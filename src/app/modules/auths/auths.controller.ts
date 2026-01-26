@@ -36,6 +36,26 @@ const loginUserIntoDB = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const loginDemoUser = catchAsync(async (req: Request, res: Response) => {
+  const result = await AuthsServices.loginDemoUser();
+
+  // Set refresh token in cookie
+  res.cookie('refreshToken', result.refreshToken, {
+    httpOnly: true, // JS access নেই
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
+    sameSite: 'strict', // CSRF protect
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
+  });
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Login successful',
+    data: result,
+  });
+});
+
 const verifyEmailIntoDB = catchAsync(async (req: Request, res: Response) => {
   const result = await AuthsServices.verifyEmail(req.body);
   sendResponse(res, {
@@ -112,6 +132,7 @@ const resendOtpIntoDB = catchAsync(async (req: Request, res: Response) => {
 export const AuthsControllers = {
   registerUserIntoDB,
   loginUserIntoDB,
+  loginDemoUser,
   verifyEmailIntoDB,
   getMyProfile,
   forgotPasswordIntoDB,

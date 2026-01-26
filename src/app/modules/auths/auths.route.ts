@@ -24,9 +24,15 @@ router.post(
 
 router.post(
   '/login',
-  loginLimiter,
+  // loginLimiter,
   validateRequest(AuthsValidations.loginSchema),
   AuthsControllers.loginUserIntoDB,
+);
+
+router.post(
+  '/login-demo-user',
+  // loginLimiter,
+  AuthsControllers.loginDemoUser,
 );
 
 router.post(
