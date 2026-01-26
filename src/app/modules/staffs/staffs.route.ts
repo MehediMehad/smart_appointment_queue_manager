@@ -17,4 +17,11 @@ router.post(
 router.get('/', auth('USER', 'ADMIN'), StaffsControllers.getAllStaffs);
 router.get('/my', auth('USER', 'ADMIN'), StaffsControllers.getMyAllStaffs);
 
+router.patch(
+  '/:id',
+  auth('USER', 'ADMIN'),
+  validateRequest(StaffsValidations.updateStaffsSchema),
+  StaffsControllers.updateStaffsIntoDB,
+);
+
 export const StaffsRoutes = router;

@@ -8,6 +8,11 @@ export const createStaffsSchema = z.object({
   status: z.nativeEnum(StaffStatusEnum).default(StaffStatusEnum.Available),
 });
 
+export const updateStaffsSchema = z.object({
+  status: z.nativeEnum(StaffStatusEnum),
+});
+
 export const StaffsValidations = {
   createStaffsSchema,
+  updateStaffsSchema,
 };

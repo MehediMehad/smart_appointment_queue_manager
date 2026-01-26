@@ -1,13 +1,13 @@
 import type { Prisma, StaffStatusEnum } from '@prisma/client';
 import httpStatus from 'http-status';
 
-import type { TCreateStaffsPayload } from './staffs.interface';
+import type { TCreateStaffsPayload, TUpdateStaffsPayload } from './staffs.interface';
 import ApiError from '../../errors/ApiError';
 import { paginationHelper } from '../../helpers/paginationHelper';
 import type { IPaginationOptions } from '../../interface/pagination.type';
 import prisma from '../../libs/prisma';
 
-const createStaffs = async (usrId: string, payload: TCreateStaffsPayload) => {
+const createStaffsIntoDB = async (usrId: string, payload: TCreateStaffsPayload) => {
   const user = await prisma.user.findUnique({ where: { id: usrId } });
 
   if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
@@ -178,8 +178,26 @@ const getMyAllStaffs = async (
   };
 };
 
+const updateStaffsIntoDB = async (
+  userId: string,
+  staffId: string,
+  payload: TUpdateStaffsPayload,
+) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+  const staff = await prisma.staff.findUnique({ where: { id: staffId } });
+
+  if (!staff) throw new ApiError(httpStatus.NOT_FOUND, 'Staff not found');
+
+  const result = await prisma.staff.update({ where: { id: staffId }, data: payload });
+
+  return result;
+};
 export const StaffsServices = {
-  createStaffs,
+  createStaffsIntoDB,
   getAllStaffs,
   getMyAllStaffs,
+  updateStaffsIntoDB,
 };

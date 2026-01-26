@@ -9,7 +9,7 @@ import sendResponse from '../../utils/sendResponse';
 const createStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
   const body = req.body;
-  const result = await StaffsServices.createStaffs(userId, body);
+  const result = await StaffsServices.createStaffsIntoDB(userId, body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -46,8 +46,22 @@ const getMyAllStaffs = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const staffId = req.params.id;
+  const body = req.body;
+  const result = await StaffsServices.updateStaffsIntoDB(userId, staffId, body);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Staffs updated successfully',
+    data: result,
+  });
+});
+
 export const StaffsControllers = {
   createStaffsIntoDB,
   getAllStaffs,
   getMyAllStaffs,
+  updateStaffsIntoDB,
 };
