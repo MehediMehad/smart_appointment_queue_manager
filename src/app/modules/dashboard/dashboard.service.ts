@@ -1,8 +1,9 @@
+import type { Prisma } from '@prisma/client';
 import { startOfDay, endOfDay } from 'date-fns';
-import prisma from '../../libs/prisma';
-import { IPaginationOptions } from '../../interface/pagination.type';
+
 import { paginationHelper } from '../../helpers/paginationHelper';
-import { Prisma } from '@prisma/client';
+import type { IPaginationOptions } from '../../interface/pagination.type';
+import prisma from '../../libs/prisma';
 
 type TFilterOptions = {
   targetDate?: string;
@@ -31,9 +32,9 @@ const getDashboardSummary = async (userId: string, filter: TFilterOptions) => {
 
   const totalToday = todayAppointments.length;
 
-  const completed = todayAppointments.filter(a => a.status === 'Completed').length;
-  const pending = todayAppointments.filter(a =>
-    ['Scheduled', 'Waiting'].includes(a.status)
+  const completed = todayAppointments.filter((a) => a.status === 'Completed').length;
+  const pending = todayAppointments.filter((a) =>
+    ['Scheduled', 'Waiting'].includes(a.status),
   ).length;
 
   // ── 2. Waiting queue count ──
@@ -65,7 +66,7 @@ const getDashboardSummary = async (userId: string, filter: TFilterOptions) => {
     orderBy: { name: 'asc' },
   });
 
-  const staffLoad = staffs.map(staff => {
+  const staffLoad = staffs.map((staff) => {
     const loadCount = staff.appointments.length;
     const isBooked = loadCount >= staff.dailyCapacity;
 
@@ -87,10 +88,9 @@ const getDashboardSummary = async (userId: string, filter: TFilterOptions) => {
   };
 };
 
-
 type TActivityLogFilter = {
   limit?: number;
-  staffId?: string;     // optional
+  staffId?: string; // optional
   appointmentId?: string; // optional
 };
 
@@ -100,8 +100,7 @@ const getRecentActivityLogs = async (
   options: IPaginationOptions,
 ) => {
   const { staffId, appointmentId } = filter;
-  const { limit, page, skip, sortBy, sortOrder } =
-    paginationHelper.calculatePagination(options);
+  const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
 
   const whereClause: Prisma.ActivityLogWhereInput = {
     userId,
@@ -130,7 +129,7 @@ const getRecentActivityLogs = async (
     where: whereClause,
   });
 
-  const formatted = logs.map(log => {
+  const formatted = logs.map((log) => {
     const timeStr = log.createdAt.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -162,7 +161,6 @@ const getRecentActivityLogs = async (
     data: formatted,
   };
 };
-
 
 export const DashboardServices = {
   getDashboardSummary,

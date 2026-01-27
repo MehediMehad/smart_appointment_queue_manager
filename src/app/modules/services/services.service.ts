@@ -42,7 +42,9 @@ const getAllServices = async (
   const { searchTerm, type = 'all_services' } = filters;
 
   // Build dynamic where clause
-  const whereClause: Prisma.ServiceWhereInput = {};
+  const whereClause: Prisma.ServiceWhereInput = {
+    isDeleted: false,
+  };
 
   if (type === 'my_services') {
     whereClause.userId = userId;
@@ -98,7 +100,52 @@ const getAllServices = async (
   };
 };
 
+const updateServicesIntoDB = async (
+  userId: string,
+  serviceId: string,
+  payload: TCreateServicesPayload,
+) => {
+  // staff type exists check
+  const result = await prisma.service.update({
+    where: {
+      userId,
+      isDeleted: false,
+      id: serviceId,
+    },
+    data: payload,
+  });
+  return result;
+};
+
+const deleteServicesIntoDB = async (userId: string, serviceId: string) => {
+  // staff type exists check
+  const service = await prisma.service.findFirst({
+    where: {
+      userId,
+      isDeleted: false,
+      id: serviceId,
+    },
+  });
+
+  if (!service) throw new ApiError(httpStatus.NOT_FOUND, 'Service not found');
+
+  const result = await prisma.service.update({
+    where: {
+      userId,
+      isDeleted: false,
+      id: serviceId,
+    },
+    data: {
+      isDeleted: true,
+    },
+  });
+
+  return result;
+};
+
 export const ServicesServices = {
   createServices,
   getAllServices,
+  updateServicesIntoDB,
+  deleteServicesIntoDB,
 };

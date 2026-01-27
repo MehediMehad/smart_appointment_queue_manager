@@ -32,7 +32,33 @@ const getAllServices = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateServicesIntoDB = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const serviceId = req.params.id;
+  const body = req.body;
+  const result = await ServicesServices.updateServicesIntoDB(userId, serviceId, body);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Services updated successfully',
+    data: result,
+  });
+});
+
+const deleteServicesIntoDB = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const serviceId = req.params.id;
+  await ServicesServices.deleteServicesIntoDB(userId, serviceId);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Services deleted successfully',
+  });
+});
+
 export const ServicesControllers = {
   createServicesIntoDB,
   getAllServices,
+  updateServicesIntoDB,
+  deleteServicesIntoDB,
 };

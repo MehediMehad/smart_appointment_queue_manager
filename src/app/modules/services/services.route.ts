@@ -16,4 +16,13 @@ router.post(
 
 router.get('/', auth('USER'), ServicesControllers.getAllServices);
 
+router.patch(
+  '/:id',
+  auth('USER'),
+  validateRequest(ServicesValidations.updateServicesSchema),
+  ServicesControllers.updateServicesIntoDB,
+);
+
+router.delete('/:id', auth('USER'), ServicesControllers.deleteServicesIntoDB);
+
 export const ServicesRoutes = router;

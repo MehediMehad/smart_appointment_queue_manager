@@ -3,8 +3,8 @@ import httpStatus from 'http-status';
 
 import { DashboardServices } from './dashboard.service';
 import catchAsync from '../../helpers/catchAsync';
-import sendResponse from '../../utils/sendResponse';
 import pick from '../../helpers/pick';
+import sendResponse from '../../utils/sendResponse';
 
 const getDashboardSummary = catchAsync(async (req: Request, res: Response) => {
   const filters = pick(req.query, ['targetDate']);
@@ -17,7 +17,6 @@ const getDashboardSummary = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
 
 const getRecentActivityLogs = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
@@ -35,5 +34,5 @@ const getRecentActivityLogs = catchAsync(async (req: Request, res: Response) => 
 
 export const DashboardControllers = {
   getDashboardSummary,
-  getRecentActivityLogs
+  getRecentActivityLogs,
 };
