@@ -14,7 +14,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
-    "generate:module": "node scripts/generateModule.js"
+    "generate:module": "node scripts/generateModule.js",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "mehedihasanmehad",
