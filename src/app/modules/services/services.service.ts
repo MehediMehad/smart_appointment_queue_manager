@@ -111,7 +111,36 @@ const updateServicesIntoDB = async (
   serviceId: string,
   payload: TCreateServicesPayload,
 ) => {
+
+  // service exists check
+  const service = await prisma.service.findFirst({
+    where: {
+      userId,
+      isDeleted: false,
+      id: serviceId,
+    },
+  });
+
+  if (!service) throw new ApiError(httpStatus.NOT_FOUND, 'Service not found');
+
   // staff type exists check
+  const staffExists = await prisma.staff.findFirst({
+    where: {
+      serviceType: payload.requiredStaffType,
+      userId,
+      status: 'Available',
+    },
+  });
+
+  if (!staffExists) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `No available staff found for service type: ${payload.requiredStaffType}`,
+    );
+  }
+
+
+
   const result = await prisma.service.update({
     where: {
       userId,
