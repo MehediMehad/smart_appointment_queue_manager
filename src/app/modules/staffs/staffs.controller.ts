@@ -46,6 +46,18 @@ const getEligibleStaffs = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getStaffLists = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const result = await StaffsServices.getStaffLists(userId);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Staffs fetched successfully',
+    data: result,
+  });
+})
+
+
 const updateStaffsIntoDB = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
   const staffId = req.params.id;
@@ -63,5 +75,6 @@ export const StaffsControllers = {
   createStaffsIntoDB,
   getAllStaffs,
   getEligibleStaffs,
+  getStaffLists,
   updateStaffsIntoDB,
 };

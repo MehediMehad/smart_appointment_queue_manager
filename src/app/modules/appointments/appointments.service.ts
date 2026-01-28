@@ -328,7 +328,7 @@ const getAppointments = async (
 
   // 3. Status filter (optional)
   if (status) {
-    where.status = status;
+    where.status = status;  // "Scheduled" | "Waiting" | "Completed" | "Cancelled" | "NoShow"
   }
 
   // 4. Customer name search (partial match)
@@ -557,9 +557,8 @@ const updateAppointmentIntoDB = async (
     }
     if (payload.status) changes.push(`status → ${newStatus}`);
 
-    const logMessage = `Appointment for "${appt.customerName}" updated: ${
-      changes.join(', ') || 'minor changes'
-    }`;
+    const logMessage = `Appointment for "${appt.customerName}" updated: ${changes.join(', ') || 'minor changes'
+      }`;
 
     await tx.activityLog.create({
       data: {

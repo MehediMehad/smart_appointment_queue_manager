@@ -16,6 +16,7 @@ router.post(
 
 router.get('/', auth('USER', 'ADMIN'), StaffsControllers.getAllStaffs);
 router.get('/eligible', auth('USER', 'ADMIN'), StaffsControllers.getEligibleStaffs);
+router.get('/list', auth('USER', 'ADMIN'), StaffsControllers.getStaffLists);
 
 router.patch(
   '/:id/status',

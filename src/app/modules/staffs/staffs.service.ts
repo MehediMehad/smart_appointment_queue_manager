@@ -175,6 +175,53 @@ const getEligibleStaffs = async (
   };
 };
 
+type StaffWithBookings = {
+  id: string;
+  name: string;
+  dailyCapacity: number;
+  currentBookings: number;
+};
+
+const getStaffLists = async (userId: string): Promise<StaffWithBookings[]> => {
+  // Get today's date range
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Fetch staff
+  const staffs = await prisma.staff.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      dailyCapacity: true,
+      appointments: {
+        where: {
+          dateTime: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          status: "Scheduled",
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  // Map to StaffWithBookings
+  return staffs.map((s) => ({
+    id: s.id,
+    name: s.name,
+    dailyCapacity: s.dailyCapacity,
+    currentBookings: s.appointments.length,
+  }));
+};
+
+
 const updateStaffsIntoDB = async (
   userId: string,
   staffId: string,
@@ -196,5 +243,6 @@ export const StaffsServices = {
   createStaffsIntoDB,
   getAllStaffs,
   getEligibleStaffs,
+  getStaffLists,
   updateStaffsIntoDB,
 };
