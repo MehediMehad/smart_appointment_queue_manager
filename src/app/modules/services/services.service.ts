@@ -23,8 +23,14 @@ const createServices = async (userId: string, payload: TCreateServicesPayload) =
       `No available staff found for service type: ${payload.requiredStaffType}`,
     );
   }
+  const data: Prisma.ServiceUncheckedCreateInput = {
+    name: payload.name,
+    durationMinutes: payload.durationMinutes,
+    requiredStaffType: payload.requiredStaffType,
+    userId,
+  };
 
-  const result = await prisma.service.create({ data: { ...payload, userId } });
+  const result = await prisma.service.create({ data: data });
   return result;
 };
 
